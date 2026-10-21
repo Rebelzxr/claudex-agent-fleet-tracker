@@ -41,13 +41,20 @@ You should see four jobs across website, content, seo and ops. One is active,
 one waits on a human, one needs review and one is done. Costs are unknown.
 A missing dispatch/jobs directory is an error, rather than an empty success.
 
-For your own fleet, keep private state outside this checkout:
+To have your own Claude or GPT agent set the fleet up step by step, hand it
+the [agent setup guide](docs/AGENT-SETUP.md). It builds an empty private fleet,
+checks each phase and stops for anything you must decide.
+
+To explore by hand, keep private state outside this checkout:
 
 ```sh
 mkdir -p ~/fleet
 cp -R example/. ~/fleet/
 export FLEET_ROOT="$HOME/fleet"
 ```
+
+The copied cards, receipts and lock are synthetic. Remove or replace them
+before real work so the board never shows sample evidence as yours.
 
 Paste [the HQ charter](templates/hq-charter.md) into a fresh Claude chat.
 Follow [Opening directors](docs/OPENING-DIRECTORS.md) to start one director and
@@ -57,6 +64,8 @@ The [method](docs/METHOD.md) covers scope, review, decisions, rotation and the
 machine gate. [Board setup](docs/BOARD.md) covers the optional Claude Code mod.
 [Claude and Codex on one folder](docs/CLAUDE-CODEX-BRIDGE.md) covers the Codex
 plugin, scripted reviews and how both agents share one folder safely.
+[Memory, logs and handoffs](docs/MEMORY-AND-HANDOFF.md) covers how agents log
+their work, hand off to a new chat and pass state between Claude and GPT.
 The script works on its own when your Claude build has no mod support.
 
 ## How HQ dispatches
@@ -82,7 +91,8 @@ not a bundled hosted app.
 - `mods/hq-board/`: desktop/terminal pane with offline host regression tests.
 - `templates/`: shared rules, charters, handoff, receipt and checkpoint.
 - `scheduled-tasks/`: inert sweep, steward and restart-wake instructions.
-- `example/`: synthetic cards, receipts, work order, lock and TODO.
+- `example/`: synthetic cards, receipts, work order, lock, TODO, a daily log
+  and a handoff.
 
 `claude plugin test mods/hq-board` uses the host's `claude-code/testing` runner.
 No package install or network is needed for its mocked process and UI tests.

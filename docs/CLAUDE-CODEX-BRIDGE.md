@@ -119,10 +119,10 @@ Both agents can read everything. Only one may write each file scope.
    SHA and asks for exactly one closing line, `VERDICT: APPROVE <sha>` or
    `VERDICT: REQUEST_CHANGES <sha>`.
 4. Fix what it asks for, commit, and review the new SHA again.
+5. Merge only on an APPROVE for the exact head SHA, as a separate step.
 
 `/codex:review` is fine for quick feedback while you work. It does not take a
 custom brief, so it cannot give the SHA-specific verdict this loop needs.
-5. Merge only on an APPROVE for the exact head SHA, as a separate step.
 
 Once that loop is boring, let the sweep and merge steward run it on a
 schedule.
