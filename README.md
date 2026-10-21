@@ -55,6 +55,8 @@ assign the first inbox work order. Read its receipt before assigning more work.
 
 The [method](docs/METHOD.md) covers scope, review, decisions, rotation and the
 machine gate. [Board setup](docs/BOARD.md) covers the optional Claude Code mod.
+[Claude and Codex on one folder](docs/CLAUDE-CODEX-BRIDGE.md) covers the Codex
+plugin, scripted reviews and how both agents share one folder safely.
 The script works on its own when your Claude build has no mod support.
 
 ## How HQ dispatches
