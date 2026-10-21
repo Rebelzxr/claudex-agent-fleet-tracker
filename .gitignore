@@ -1,0 +1,10 @@
+.env*
+.privacy-denylist
+*.key
+*.pem
+node_modules/
+__pycache__/
+*.pyc
+.local/
+fleet.config.local.json
+.DS_Store

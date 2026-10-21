@@ -1,0 +1,28 @@
+{
+  "id": "WEB-PILOT",
+  "title": "Website pilot",
+  "lane": "website",
+  "owner": "Website director",
+  "session": "<WEBSITE_SESSION_ID>",
+  "status": "active",
+  "scope": [
+    "<FLEET_ROOT>/website-pilot/"
+  ],
+  "steps": [
+    {
+      "name": "Read scoped work order",
+      "done": true
+    },
+    {
+      "name": "Prepare page plan",
+      "done": false
+    },
+    {
+      "name": "Record local checks",
+      "done": false
+    }
+  ],
+  "updated": "2026-01-02T10:00:00+00:00",
+  "version": "v1",
+  "evidence": []
+}

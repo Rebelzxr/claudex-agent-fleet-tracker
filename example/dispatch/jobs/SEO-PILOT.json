@@ -1,0 +1,26 @@
+{
+  "id": "SEO-PILOT",
+  "title": "Seo pilot",
+  "lane": "seo",
+  "owner": "Seo director",
+  "session": "<SEO_SESSION_ID>",
+  "status": "review",
+  "scope": [
+    "<FLEET_ROOT>/seo-pilot/"
+  ],
+  "steps": [
+    {
+      "name": "Prepare metadata plan",
+      "done": true
+    },
+    {
+      "name": "Second model review",
+      "done": false
+    }
+  ],
+  "updated": "2026-01-02T12:00:00+00:00",
+  "version": "v1",
+  "evidence": [
+    "dispatch/receipts/SEO-PILOT.md"
+  ]
+}

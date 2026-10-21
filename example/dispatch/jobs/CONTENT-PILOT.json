@@ -1,0 +1,29 @@
+{
+  "id": "CONTENT-PILOT",
+  "title": "Content pilot",
+  "lane": "content",
+  "owner": "Content director",
+  "session": "<CONTENT_SESSION_ID>",
+  "status": "blocked",
+  "scope": [
+    "<FLEET_ROOT>/content-pilot/"
+  ],
+  "steps": [
+    {
+      "name": "Draft topic options",
+      "done": true
+    },
+    {
+      "name": "Human: choose a topic",
+      "done": false
+    },
+    {
+      "name": "Prepare pilot",
+      "done": false
+    }
+  ],
+  "updated": "2026-01-02T11:00:00+00:00",
+  "version": "v1",
+  "evidence": [],
+  "blocked_on": "Human: choose a topic in the Decision Desk"
+}

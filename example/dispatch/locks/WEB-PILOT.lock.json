@@ -1,0 +1,12 @@
+{
+  "example_only": true,
+  "job_id": "WEB-PILOT",
+  "holder": "<WEBSITE_SESSION_ID>",
+  "scope": [
+    "<FLEET_ROOT>/website-pilot/"
+  ],
+  "acquired": "2026-01-02T10:00:00+00:00",
+  "expires": "2026-01-02T11:00:00+00:00",
+  "checkpoint": "<CHECKPOINT_PATH>",
+  "note": "Not an active lease. Confirm current ownership before creating a real lease."
+}

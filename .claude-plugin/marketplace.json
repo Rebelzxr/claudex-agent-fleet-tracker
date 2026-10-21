@@ -1,0 +1,15 @@
+{
+  "name": "fleet-mods",
+  "owner": {
+    "name": "Fleet Maintainers"
+  },
+  "plugins": [
+    {
+      "name": "hq-board",
+      "source": "./mods/hq-board"
+    }
+  ],
+  "metadata": {
+    "description": "Local file workflow and fleet board mod"
+  }
+}

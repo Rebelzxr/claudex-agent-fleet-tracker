@@ -1,0 +1,26 @@
+{
+  "id": "OPS-PILOT",
+  "title": "Ops pilot",
+  "lane": "ops",
+  "owner": "Ops director",
+  "session": "<OPS_SESSION_ID>",
+  "status": "done",
+  "scope": [
+    "<FLEET_ROOT>/ops-pilot/"
+  ],
+  "steps": [
+    {
+      "name": "Map workflow folders",
+      "done": true
+    },
+    {
+      "name": "Save sample receipt",
+      "done": true
+    }
+  ],
+  "updated": "2026-01-02T13:00:00+00:00",
+  "version": "v1",
+  "evidence": [
+    "dispatch/receipts/OPS-PILOT.md"
+  ]
+}
