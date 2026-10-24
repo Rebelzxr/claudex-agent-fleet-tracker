@@ -712,7 +712,7 @@ export const register: Register = on => {
             </Box>
           )}
           {data?.codex_unattributed?.runs ? (
-            <Text dimColor>Codex not tied to a job: {tok(data.codex_unattributed.total)} tokens ({data.codex_unattributed.runs} turns{data.codex_unattributed.several_jobs ? `, ${data.codex_unattributed.several_jobs} naming several jobs` : ''})</Text>
+            <Text dimColor>Codex not tied to a job: {tok(data.codex_unattributed.total)}{(data.codex_unattributed.total_upper ?? 0) > data.codex_unattributed.total ? `–${tok(data.codex_unattributed.total_upper)}` : ''} tokens ({data.codex_unattributed.runs} turns{data.codex_unattributed.several_jobs ? `, ${data.codex_unattributed.several_jobs} naming several jobs` : ''})</Text>
           ) : ''}
           {(data?.errors ?? []).length > 0 && <Text color="red">{(data?.errors ?? []).length} chats skipped (bad data in their transcript)</Text>}
 

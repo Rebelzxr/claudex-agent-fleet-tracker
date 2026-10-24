@@ -77,7 +77,7 @@ test('shows each job cost and time, marks estimates, and expands phases and mode
     expect(await ui.find({ type: 'Text', text: /\$0\.75/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /not billed/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /voice|tts-vendor/ })).toBeUndefined()
-    expect(await ui.find({ type: 'Text', text: /Codex not tied to a job: 1000\.0M tokens \(100 turns, 8 naming several jobs\)/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /Codex not tied to a job: 1000\.0M–1100\.0M tokens \(100 turns, 8 naming several jobs\)/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /1 chats skipped \(bad data/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /jobs \$40\.00 \+ coordination \$20\.00/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /^\s*build/ })).toBeUndefined()

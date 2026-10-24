@@ -415,6 +415,24 @@ class UsageChecks(unittest.TestCase):
         self.codex_events("h.jsonl", [("prompt", "WEB"), ("tokens", 100), ("prompt", "OPS"), ("tokens", 150)])
         self.assertEqual(self.codex_totals(), {"WEB": 100, "OPS": 50})
 
+    def test_a_cancelled_turn_without_tokens_does_not_absorb_the_next(self):
+        self.card("WEB")
+        self.card("OPS")
+        self.codex_events("k.jsonl", [("start",), ("prompt", "WEB"), ("start",), ("prompt", "OPS"), ("tokens", 100)])
+        self.assertEqual(self.codex_totals(), {"WEB": None, "OPS": 100})
+        self.codex_events("k.jsonl", [("prompt", "WEB"), ("prompt", "OPS"), ("tokens", 100)])
+        self.assertEqual(self.codex_totals(), {"WEB": None, "OPS": 100})
+
+    def test_a_job_id_late_in_a_long_prompt_still_counts(self):
+        self.card("WEB")
+        self.card("OPS")
+        self.codex_events("l.jsonl", [("start",), ("prompt", "WEB " + "x " * 5000 + "OPS"), ("tokens", 100),
+                                      ("start",), ("prompt", "y " * 5000 + "OPS"), ("tokens", 150)])
+        data = self.codex_board()
+        self.assertEqual({row["id"]: row["cost"] and row["cost"]["total"]["codex"]["total"] for row in data["jobs"]},
+                         {"WEB": None, "OPS": 50})
+        self.assertEqual(data["codex_unattributed"]["several_jobs"], 1)
+
     def test_an_unreadable_helper_keeps_the_rest_and_marks_partial(self):
         self.card("WEB", session=MAIN)
         self.write_main()

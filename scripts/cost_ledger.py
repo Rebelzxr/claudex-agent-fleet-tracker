@@ -290,15 +290,18 @@ def read_codex(path, job_ids):
     high, prev, drops = [0] * 5, [0] * 5, 0
 
     def turn(at):
-        turns.append({"t0": at, "t1": at, "named": set(), "tokens": [0] * 5, "upper": 0})
+        turns.append({"t0": at, "t1": at, "named": set(), "tokens": [0] * 5, "upper": 0, "events": set()})
         return turns[-1]
 
-    def open_turn(at):
-        # A prompt and its task_started event can come in either order. Both belong to
-        # the latest turn until that turn has used tokens; after that, a new turn starts.
-        if turns and not any(turns[-1]["tokens"]) and not turns[-1]["upper"]:
-            return turns[-1]
-        return turn(at)
+    def open_turn(at, event):
+        # A prompt and its task_started event can come in either order and share a turn.
+        # A new turn starts once the current one used tokens, or when the same kind of
+        # event repeats (a cancelled turn with no tokens must not absorb the next prompt).
+        current = turns[-1] if turns else None
+        if current is None or any(current["tokens"]) or current["upper"] or event in current["events"]:
+            current = turn(at)
+        current["events"].add(event)
+        return current
 
     with open(path, "rb") as handle:
         for raw in handle:
@@ -313,7 +316,7 @@ def read_codex(path, job_ids):
                 if kind == "session_meta":
                     cwd = cwd or payload.get("cwd")
                 elif kind == "event_msg" and inner == "task_started":
-                    open_turn(at)
+                    open_turn(at, "start")
                 elif kind == "event_msg" and inner == "token_count":
                     info = payload.get("info")
                     total = info.get("total_token_usage") if isinstance(info, dict) else None
@@ -335,9 +338,9 @@ def read_codex(path, job_ids):
                     prev = now
                 elif kind == "response_item" and inner == "message" and payload.get("role") == "user":
                     content = payload.get("content") if isinstance(payload.get("content"), list) else []
-                    text = " ".join(str(part.get("text", "")) for part in content if isinstance(part, dict))[:4000]
+                    text = " ".join(str(part.get("text", "")) for part in content if isinstance(part, dict))
                     if not text.lstrip().startswith("<"):
-                        open_turn(at)["named"] |= {job for job in job_ids if _names(text, job)}
+                        open_turn(at, "prompt")["named"] |= {job for job in job_ids if _names(text, job)}
             except (ValueError, AttributeError, TypeError):
                 bad += 1
     return turns, cwd, drops, bad
