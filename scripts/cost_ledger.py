@@ -14,14 +14,29 @@ from pathlib import Path
 SESSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
 DATE_SUFFIX = re.compile(r"-\d{8}$")
 COUNTERS = ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
+PRICE_FIELDS = ("input", "output", "cache_read", "cache_write_5m", "cache_write_1h")
 GAP = 600  # seconds between replies; a longer pause counts as idle, not work time
 
 
 def load_prices(path):
     data = json.loads(Path(path).read_text(encoding="utf-8"))
-    if not isinstance(data.get("claude"), dict):
+    if not isinstance(data, dict) or not isinstance(data.get("claude"), dict):
         raise ValueError("price file needs a claude table")
+    for price in data["claude"].values():
+        _check_price(price)
+        if "long_context" in price:
+            _check_price(price["long_context"])
+            _count(price["long_context"].get("above_prompt_tokens"))
     return data
+
+
+def _check_price(price):
+    if not isinstance(price, dict):
+        raise ValueError("each model price must be a table")
+    for name in PRICE_FIELDS:
+        if price.get(name) is None:
+            raise ValueError("model price is missing a rate")
+        _count(price[name])
 
 
 def price_for(prices, model):
@@ -82,15 +97,16 @@ def _timestamp(value):
 
 def session_files(projects, session):
     """Main transcript plus helper transcripts for one session id; symbolic links are skipped."""
-    if not SESSION_RE.match(session):
+    if not SESSION_RE.fullmatch(session):
         return []
     found = []
     for project in sorted(p for p in projects.iterdir() if p.is_dir() and not p.is_symlink()):
         main = project / f"{session}.jsonl"
         if main.is_file() and not main.is_symlink():
             found.append(main)
-        helpers = project / session / "subagents"
-        if helpers.is_dir() and not helpers.is_symlink():
+        folder = project / session
+        helpers = folder / "subagents"
+        if folder.is_dir() and not folder.is_symlink() and helpers.is_dir() and not helpers.is_symlink():
             found.extend(p for p in sorted(helpers.glob("*.jsonl")) if p.is_file() and not p.is_symlink())
     return found
 
@@ -117,7 +133,9 @@ def read_session(files):
                     if record.get("type") != "assistant":
                         continue
                     message = record.get("message") or {}
-                    usage = message.get("usage") or {}
+                    usage = message.get("usage")
+                    if not isinstance(usage, dict) or all(usage.get(name) is None for name in COUNTERS):
+                        continue
                     model = message.get("model")
                     key = message.get("id")
                     if not isinstance(key, str) or not isinstance(model, str) or model == "<synthetic>":
@@ -132,16 +150,21 @@ def read_session(files):
                     "model": model, "at": _timestamp(record.get("timestamp")),
                     "input": nums["input_tokens"], "output": nums["output_tokens"],
                     "cache_read": nums["cache_read_input_tokens"],
-                    "cache_write_5m": nums["cache_creation_input_tokens"] - write_1h, "cache_write_1h": write_1h,
+                    "cache_write": nums["cache_creation_input_tokens"], "cache_write_1h": write_1h,
                 }
                 old = replies.get(key)
                 if old is None:
                     replies[key] = reply
                 else:
-                    for name in ("input", "output", "cache_read", "cache_write_5m", "cache_write_1h"):
+                    for name in ("input", "output", "cache_read", "cache_write", "cache_write_1h"):
                         old[name] = max(old[name], reply[name])
                     if old["at"] is None:
                         old["at"] = reply["at"]
+    # Split cache writes only after the streamed maxima, so a later line that moves
+    # tokens into the 1h bucket cannot leave them counted in 5m as well.
+    for reply in replies.values():
+        reply["cache_write_1h"] = min(reply["cache_write_1h"], reply["cache_write"])
+        reply["cache_write_5m"] = reply.pop("cache_write") - reply["cache_write_1h"]
     return replies, title, bad
 
 
@@ -179,8 +202,9 @@ def usage(job_sessions, projects, prices):
     for job, sessions in job_sessions.items():
         for session in sessions:
             owners.setdefault(session, set()).add(job)
-    report = {"enabled": True, "status": "ok", "sessions_named": len(owners),
-              "sessions_found": 0, "sessions_missing": 0, "shared_sessions": 0, "unreadable_lines": 0}
+    report = {"enabled": True, "status": "ok", "sessions_named": len(owners), "sessions_found": 0,
+              "sessions_missing": 0, "sessions_empty": 0, "shared_sessions": 0, "unreadable_lines": 0}
+    projects = projects.expanduser().resolve()  # the folder the person chose; links inside it are skipped
     if not projects.is_dir():
         report.update(status="no_transcripts", reason=f"no Claude Code transcripts found at {_short(projects)}")
         return {}, [], report
@@ -193,6 +217,9 @@ def usage(job_sessions, projects, prices):
         replies, title, bad = read_session(files)
         report["sessions_found"] += 1
         report["unreadable_lines"] += bad
+        if not replies:
+            report["sessions_empty"] += 1  # a transcript with no usage records is unknown, not free
+            continue
         total = session_bucket(replies, prices)
         jobs = sorted(owners[session])
         chat = {"id": session, "title": title or "", "total": total, "coordination": blank(),
@@ -211,6 +238,9 @@ def usage(job_sessions, projects, prices):
                       reason=f"no transcript matches a card's session id under {_short(projects)}")
     elif not owners:
         report.update(status="no_sessions_on_cards", reason="no job card has a session id yet")
+    elif report["sessions_missing"] or report["sessions_empty"] or report["unreadable_lines"]:
+        report.update(status="partial", reason="usage is incomplete: some named sessions or usage "
+                      "records could not be read, so totals cover only what was read")
     chats.sort(key=lambda c: -c["total"]["usd"])
     return job_costs, chats, report
 
@@ -220,4 +250,4 @@ def _short(path):
     try:
         return "~/" + str(path.relative_to(home))
     except ValueError:
-        return str(path)
+        return "the folder set by --claude-dir or FLEET_CLAUDE_PROJECTS"

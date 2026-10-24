@@ -74,7 +74,12 @@ def card_sessions(card):
 def load_ledger():
     spec = importlib.util.spec_from_file_location("cost_ledger", Path(__file__).with_name("cost_ledger.py"))
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    previous = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True  # the board stays read-only: no .pyc next to the script
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.dont_write_bytecode = previous
     return module
 
 
@@ -126,7 +131,7 @@ def add_usage(board, sessions, usage):
         ledger = load_ledger()
         prices = ledger.load_prices(usage["prices"])
         job_costs, chats, report = ledger.usage(sessions, usage["projects"], prices)
-    except (OSError, UnicodeError, ValueError, KeyError, TypeError):
+    except (OSError, UnicodeError, ValueError, KeyError, TypeError, AttributeError, OverflowError):
         board["usage"] = {"enabled": True, "status": "error",
                           "reason": "usage could not be read; costs left unknown"}
         board["prices"] = {"note": "Usage on, but it could not be read; costs are unknown, not zero"}

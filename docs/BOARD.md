@@ -20,10 +20,12 @@ Token usage is off by default, so a fresh checkout shows `cost: null` and a dash
 in the cost column. Nothing private is read until you ask. Turn it on with:
 
 ```sh
-FLEET_USAGE=1 python3 scripts/fleet_board.py | python3 -m json.tool
+FLEET_USAGE=1 python3 scripts/fleet_board.py --root "${FLEET_ROOT:-example}" | python3 -m json.tool
 ```
 
-`--usage` does the same. For the mod, add `export FLEET_USAGE=1` next to the
+That uses your exported `FLEET_ROOT`, or the example fleet if it is unset. The
+example cards hold placeholders, so they stay null until you put real session
+ids on your own cards. `--usage` does the same as `FLEET_USAGE=1`. For the mod, add `export FLEET_USAGE=1` next to the
 other exports below before you start the app. Transcripts are read from
 `~/.claude/projects`; if yours live elsewhere, set `FLEET_CLAUDE_PROJECTS` (or
 `--claude-dir`) to that folder.
@@ -46,7 +48,8 @@ skipped.
   `no_transcripts` (folder not found), `no_sessions_on_cards` (cards still hold
   placeholders), `no_matching_sessions` (no transcript has a card's id) or
   `error` (the price file or a transcript could not be read). Unknown stays null,
-  never a zero.
+  never a zero. `partial` means some named sessions or usage records could not
+  be read, so the amounts cover only what was read.
 
 With usage on, the board output carries session ids and chat titles. Keep it as
 private as the transcripts themselves.

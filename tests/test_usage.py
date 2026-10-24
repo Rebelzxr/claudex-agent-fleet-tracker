@@ -182,6 +182,81 @@ class UsageChecks(unittest.TestCase):
                                 env={**os.environ, "FLEET_USAGE": ""})
         self.assertIsNone(json.loads(result.stdout)["jobs"][0]["cost"])
 
+    def test_links_inside_the_transcript_folder_are_not_followed(self):
+        self.card("WEB", session=MAIN)
+        outside = Path(self.temp.name) / "outside"
+        self.transcript(outside / "subagents" / "agent-1.jsonl", [
+            reply("x1", "claude-opus-5-5", "2026-01-02T10:00:00Z", output_tokens=50)])
+        self.transcript(self.project / f"{MAIN}.jsonl", [
+            reply("m1", "claude-opus-5-5", "2026-01-02T10:00:00Z", output_tokens=5)])
+        (self.project / MAIN).symlink_to(outside, target_is_directory=True)
+        cost = BOARD.build_board(self.fleet, usage=self.usage)["jobs"][0]["cost"]
+        self.assertEqual(cost["total"]["claude"]["claude-opus-5-5"]["output"], 5)
+
+    def test_a_trailing_newline_does_not_pass_as_a_session_id(self):
+        self.card("WEB", session=MAIN + "\n")
+        self.write_main()
+        data = BOARD.build_board(self.fleet, usage=self.usage)
+        self.assertIsNone(data["jobs"][0]["cost"])
+
+    def test_a_later_stream_line_that_moves_cache_to_1h_is_not_counted_twice(self):
+        self.card("WEB", session=MAIN)
+        self.transcript(self.project / f"{MAIN}.jsonl", [
+            reply("c1", "claude-opus-5-5", "2026-01-02T10:00:00Z", cache_creation_input_tokens=100),
+            reply("c1", "claude-opus-5-5", "2026-01-02T10:00:00Z", cache_creation_input_tokens=100,
+                  cache_creation={"ephemeral_1h_input_tokens": 100}),
+        ])
+        opus = BOARD.build_board(self.fleet, usage=self.usage)["jobs"][0]["cost"]["total"]["claude"]["claude-opus-5-5"]
+        self.assertEqual((opus["cache_write_5m"], opus["cache_write_1h"]), (0, 100))
+
+    def test_a_transcript_without_usage_is_unknown_and_marks_the_board_partial(self):
+        self.card("WEB", session=MAIN)
+        self.card("SEO", session=OTHER)
+        self.write_main()
+        self.transcript(self.project / f"{OTHER}.jsonl", [
+            {"type": "user", "message": {"content": "HIDDEN_PROMPT_TEXT"}},
+            reply("s1", "<synthetic>", "2026-01-02T10:00:00Z", output_tokens=9),
+            {"type": "assistant", "message": {"id": "e1", "model": "claude-opus-5-5", "usage": {}}},
+        ])
+        data = BOARD.build_board(self.fleet, usage=self.usage)
+        costs = {row["id"]: row["cost"] for row in data["jobs"]}
+        self.assertIsNone(costs["SEO"])
+        self.assertIsNotNone(costs["WEB"])
+        self.assertEqual(data["usage"]["status"], "partial")
+        self.assertEqual(data["usage"]["sessions_empty"], 1)
+
+    def test_a_missing_rotated_session_marks_the_board_partial(self):
+        self.card("WEB", session=MAIN, sessions=[OTHER])
+        self.write_main()
+        data = BOARD.build_board(self.fleet, usage=self.usage)
+        self.assertEqual(data["usage"]["status"], "partial")
+        self.assertIn("incomplete", data["prices"]["note"])
+
+    def test_a_wrongly_shaped_price_file_leaves_costs_unknown(self):
+        self.card("WEB", session=MAIN)
+        self.write_main()
+        for text in ("[]", '{"claude": {"claude-opus-5-5": []}}'):
+            broken = self.fleet / "prices.json"
+            broken.write_text(text)
+            data = BOARD.build_board(self.fleet, usage=dict(self.usage, prices=broken))
+            self.assertIsNone(data["jobs"][0]["cost"])
+            self.assertEqual(data["usage"]["status"], "error")
+
+    def test_a_folder_outside_home_is_not_echoed(self):
+        self.card("WEB", session=MAIN)
+        missing = Path("/nonexistent-fleet-transcripts")
+        data = BOARD.build_board(self.fleet, usage=dict(self.usage, projects=missing))
+        self.assertNotIn(str(missing), json.dumps(data))
+        self.assertEqual(data["usage"]["status"], "no_transcripts")
+
+    def test_usage_writes_no_bytecode(self):
+        cache = ROOT / "scripts" / "__pycache__"
+        before = sorted(cache.glob("cost_ledger*")) if cache.exists() else []
+        subprocess.run(["python3", "scripts/fleet_board.py", "--root", str(self.fleet), "--usage",
+                        "--claude-dir", str(self.projects)], cwd=ROOT, capture_output=True, check=True)
+        after = sorted(cache.glob("cost_ledger*")) if cache.exists() else []
+        self.assertEqual(before, after)
+
 
 if __name__ == "__main__":
     unittest.main()
