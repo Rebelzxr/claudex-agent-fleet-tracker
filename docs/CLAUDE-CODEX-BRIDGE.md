@@ -73,6 +73,9 @@ codex exec -s read-only -c approval_policy="never" \
   files. If a review log shows a write, treat the review as void.
 - Run long reviews in the background and read the log when it exits. Do not
   poll the model in a loop.
+- `--ephemeral` keeps no session log, so the board cannot count that run's
+  tokens. Drop it, and start the brief with `JOB_ID: <card id>`, when you want
+  Codex usage on the board.
 
 Use your strongest model for reviews and a cheaper one for mechanical jobs
 like extraction or reformatting. Never let the model that wrote the work be

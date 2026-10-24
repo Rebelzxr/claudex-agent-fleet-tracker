@@ -86,10 +86,23 @@ the same numbers as the author's board:
 3. For Codex (GPT) tokens, nothing extra: recent logs under `~/.codex/sessions`
    are read too. A Codex run counts toward a job when its prompt names the card
    id (start prompts with `JOB_ID: <card id>`) or it runs inside the card's
-   `scope` folder. Other runs show as "not tied to a job".
+   `scope` folder. Other runs show as "not tied to a job". A run started with
+   `codex exec --ephemeral` writes no session log, so it cannot be counted.
 4. Check: `python3 scripts/fleet_board.py --root "$FLEET_ROOT" --usage` and look
    for a non-null `cost` on your cards. If it is still null, `usage.status`
    says why.
+
+Using the desktop pane (`/board`) as well? Update this checkout and the mod
+together, because an older mod does not pass the switch to the script:
+
+- Loaded with `claude --plugin-dir "$PWD/mods/hq-board"`: `git pull` is enough.
+- Installed from the local marketplace: `git pull`, then
+  `claude plugin marketplace update fleet-mods` and
+  `claude plugin update hq-board@fleet-mods`.
+
+Then `export FLEET_USAGE=1` next to `FLEET_ROOT` and `FLEET_BOARD_SCRIPT`, quit
+and restart the app from that shell, and run `/board`. An app opened from its
+icon may not see shell variables; see [Board setup](docs/BOARD.md).
 
 Everything is read locally and only numbers are kept. Dollars are
 API-equivalent list prices, not a bill, and Codex is counted but not priced.
