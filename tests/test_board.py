@@ -26,7 +26,7 @@ class BoardChecks(unittest.TestCase):
     def test_example_end_to_end(self):
         result = subprocess.run(
             ["python3", "scripts/fleet_board.py"], cwd=ROOT,
-            env={**os.environ, "FLEET_ROOT": "example", "FLEET_TIMEZONE": "UTC"},
+            env={**os.environ, "FLEET_ROOT": "example", "FLEET_TIMEZONE": "UTC", "FLEET_USAGE": ""},
             capture_output=True, text=True, check=True,
         )
         data = json.loads(result.stdout)
@@ -35,6 +35,8 @@ class BoardChecks(unittest.TestCase):
         blocked = next(row for row in data["jobs"] if row["status"] == "blocked")
         self.assertEqual((blocked["done"], blocked["total"]), (1, 3))
         self.assertTrue(blocked["blocked_on"].startswith("Human:"))
+        # Usage is off by default, so cost stays unknown (null), never a made-up zero.
+        self.assertEqual(data["usage"]["status"], "off")
         self.assertTrue(all(row["cost"] is None for row in data["jobs"]))
 
     def test_bad_cards_are_isolated_and_do_not_echo_contents(self):

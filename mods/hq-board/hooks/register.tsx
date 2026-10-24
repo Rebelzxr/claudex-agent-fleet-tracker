@@ -403,7 +403,12 @@ async function refreshBoard($: EngineInterface) {
     return
   }
   const zone = await $.env.get('FLEET_TIMEZONE')
-  const ran = await $.process.run(['python3', script, '--root', root, '--timezone', zone || ''])
+  const args = ['python3', script, '--root', root, '--timezone', zone || '']
+  // Token usage is opt-in: the script reads local Claude Code transcripts only when asked.
+  if (/^(1|true|yes)$/i.test((await $.env.get('FLEET_USAGE')) || '')) args.push('--usage')
+  const claudeDir = await $.env.get('FLEET_CLAUDE_PROJECTS')
+  if (claudeDir) args.push('--claude-dir', claudeDir)
+  const ran = await $.process.run(args)
   if (ran.exitCode !== 0) {
     $.ui.toast(`hq-board: calculator failed (${ran.stderr.slice(0, 80)})`)
     return

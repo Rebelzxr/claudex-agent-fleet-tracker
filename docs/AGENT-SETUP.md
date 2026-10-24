@@ -234,7 +234,8 @@ Follow [Opening directors](OPENING-DIRECTORS.md):
    [director-charter.md](../templates/director-charter.md) filled for that lane.
 3. Record the director's real session reference in the card's `session` field.
    Never guess one. If the host has no way to show it, write `manual` and route
-   by pasting.
+   by pasting. Token usage on the board needs the Claude Code session id here
+   (see [Why are tokens null?](BOARD.md#why-are-tokens-null)).
 4. If the pilot changes code, create its branch in the lane repo now and name
    it in the work order, so the director never starts on main.
 5. Send the work order path to the director with a supported session tool, or

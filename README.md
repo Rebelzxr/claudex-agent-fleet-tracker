@@ -38,7 +38,9 @@ python3 -B -m unittest discover -s tests -v
 ```
 
 You should see four jobs across website, content, seo and ops. One is active,
-one waits on a human, one needs review and one is done. Costs are unknown.
+one waits on a human, one needs review and one is done. Costs are unknown
+because token usage is off by default: see
+[Why are tokens null?](docs/BOARD.md#why-are-tokens-null) for the one-line switch.
 A missing dispatch/jobs directory is an error, rather than an empty success.
 
 To have your own Claude or GPT agent set the fleet up step by step, hand it
@@ -87,7 +89,7 @@ not a bundled hosted app.
 
 ## Layout and checks
 
-- `scripts/`: read-only JSON board and privacy grep.
+- `scripts/`: read-only JSON board, opt-in token usage ledger and privacy grep.
 - `mods/hq-board/`: desktop/terminal pane with offline host regression tests.
 - `templates/`: shared rules, charters, handoff, receipt and checkpoint.
 - `scheduled-tasks/`: inert sweep, steward and restart-wake instructions.

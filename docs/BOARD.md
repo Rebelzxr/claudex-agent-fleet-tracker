@@ -10,8 +10,46 @@ FLEET_ROOT=example python3 scripts/fleet_board.py | python3 -m json.tool
 
 The root must contain `dispatch/jobs/`. Card files beginning with `_` are ignored.
 Malformed cards and duplicate ids appear in `errors`; other valid cards remain
-visible. Dates use ISO timestamps with a UTC offset. The data script never reads
-chat transcripts, secrets, inbox messages, decisions or cost history.
+visible. Dates use ISO timestamps with a UTC offset. By default the data script
+never reads chat transcripts, secrets, inbox messages, decisions or cost history.
+Token usage is opt-in; see [Why are tokens null?](#why-are-tokens-null).
+
+## Why are tokens null?
+
+Token usage is off by default, so a fresh checkout shows `cost: null` and a dash
+in the cost column. Nothing private is read until you ask. Turn it on with:
+
+```sh
+FLEET_USAGE=1 python3 scripts/fleet_board.py | python3 -m json.tool
+```
+
+`--usage` does the same. For the mod, add `export FLEET_USAGE=1` next to the
+other exports below before you start the app. Transcripts are read from
+`~/.claude/projects`; if yours live elsewhere, set `FLEET_CLAUDE_PROJECTS` (or
+`--claude-dir`) to that folder.
+
+Each card then needs its director's Claude Code session id in `session`. That id
+is the file name of the chat's transcript under `~/.claude/projects/<project>/`,
+without `.jsonl`. After a chat rotation, keep the older ids in a `sessions` list
+so the job keeps its full total. Placeholders such as `<WEB_SESSION_ID>` are
+skipped.
+
+- It reads only the transcripts of sessions named on cards, plus their helper
+  agent transcripts, and keeps only token counts, model names, timestamps and the
+  chat title. Prompt, reply and tool text never reach the output. No network.
+- Dollars are API-equivalent at the public list prices in
+  `scripts/usage_prices.json` (see its `as_of` date), not a bill. Pro and Max
+  plans are subscriptions. Codex usage is not counted yet.
+- A session named on two cards is not split between them. It shows on its chat
+  row as coordination and on neither job.
+- When a job still shows null, `usage.status` and the prices note say why:
+  `no_transcripts` (folder not found), `no_sessions_on_cards` (cards still hold
+  placeholders), `no_matching_sessions` (no transcript has a card's id) or
+  `error` (the price file or a transcript could not be read). Unknown stays null,
+  never a zero.
+
+With usage on, the board output carries session ids and chat titles. Keep it as
+private as the transcripts themselves.
 
 ## Install the optional mod
 
@@ -49,10 +87,11 @@ A fresh install selects the first session as HQ; `/board-hq` changes that choice
 
 - Jobs: lane, current status, completed steps and next action. Lane buttons jump
   into the paged list. Blockers beginning with `Human:` show `on YOU`.
-- Optional cost detail: the inherited pane accepts cost buckets and phase data,
-  but this script supplies `cost: null` and no chat totals. The column dash means
-  unknown; summed zeroes mean no supplied cost, not free work or a bill.
-- Chats: optional cost totals; empty in the zero setup version.
+- Optional cost detail: with usage off, the script supplies `cost: null` and no
+  chat totals. The column dash means unknown, not free work. With usage on, each
+  job gets Claude token buckets and an API-equivalent dollar figure. Phase data
+  stays empty.
+- Chats: per-session totals when usage is on; empty otherwise.
 - Messages: direction, peer label, delivery state and configured time zone.
   Message bodies are neither stored nor drawn by this port. Routing metadata
   stays in the host's local plugin store. Do not share that store publicly.

@@ -2,7 +2,7 @@ import { expect, mock, test } from 'claude-code/testing'
 
 const DATA = { generated: Date.UTC(2026, 0, 1) / 1000, jobs: [], timezone: 'UTC' }
 
-function setup(on: any, options: { missing?: boolean; failure?: boolean; invalid?: boolean } = {}) {
+function setup(on: any, options: { missing?: boolean; failure?: boolean; invalid?: boolean; usage?: boolean } = {}) {
   const calls: any[] = []
   const store: Record<string, any> = { hqSession: 'hq-sample', wire: [] }
   on('store.get', ((_$: any, e: any) => ({ value: store[e.key] })) as any)
@@ -10,6 +10,7 @@ function setup(on: any, options: { missing?: boolean; failure?: boolean; invalid
   on('session.id', (() => ({ value: 'hq-sample' })) as any)
   on('env.get', ((_$: any, e: any) => ({ value: options.missing ? '' : ({
     FLEET_ROOT: '/x/sample fleet', FLEET_BOARD_SCRIPT: '/x/tools/board script.py', FLEET_TIMEZONE: 'UTC',
+    ...(options.usage ? { FLEET_USAGE: '1', FLEET_CLAUDE_PROJECTS: '/x/transcripts' } : {}),
   } as any)[e.name] })) as any)
   on('process.run', ((_$: any, e: any) => {
     calls.push(e)
@@ -31,6 +32,20 @@ test('uses configured paths as process arguments and formats a configured zone',
   const ui = await $.ui.mount({ plugin: 'hq-board', surface: 'terminal', component: 'Pane', requestId: 'hq-board', props: { bodyColumns: 100 } as any })
   expect(await ui.find({ type: 'Text', text: /UTC · newest/ })).toBeDefined()
   await ui.unmount()
+})
+
+test('usage stays off unless FLEET_USAGE is set', async ($, on) => {
+  const off = setup(on)
+  await $.command.run({ command: 'board' })
+  expect(JSON.stringify(off.calls[0])).not.toContain('--usage')
+})
+
+test('FLEET_USAGE passes --usage and the transcript folder', async ($, on) => {
+  const { calls } = setup(on, { usage: true })
+  await $.command.run({ command: 'board' })
+  const call = JSON.stringify(calls[0])
+  expect(call).toContain('--usage')
+  expect(call).toContain('/x/transcripts')
 })
 
 test('missing config does not run a process', async ($, on) => {
