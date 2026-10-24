@@ -411,6 +411,8 @@ async function refreshBoard($: EngineInterface) {
   const codexDir = await $.env.get('FLEET_CODEX_HOME')
   if (codexDir) args.push('--codex-dir', codexDir)
   if (/^(0|false|no)$/i.test((await $.env.get('FLEET_CODEX')) || '')) args.push('--no-codex')
+  const codexDays = await $.env.get('FLEET_CODEX_DAYS')
+  if (codexDays) args.push('--codex-days', codexDays)
   const ran = await $.process.run(args)
   if (ran.exitCode !== 0) {
     $.ui.toast(`hq-board: calculator failed (${ran.stderr.slice(0, 80)})`)

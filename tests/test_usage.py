@@ -382,6 +382,63 @@ class UsageChecks(unittest.TestCase):
         self.assertIsNone(data["jobs"][0]["cost"])
         self.assertEqual(data["codex_unattributed"]["runs"], 1)
 
+    def codex_events(self, name, events):
+        """Raw Codex events in order: ("prompt", text), ("start",) or ("tokens", total)."""
+        lines = [{"type": "session_meta", "timestamp": "2026-01-02T09:00:00Z", "payload": {"cwd": "/nowhere"}}]
+        for minute, event in enumerate(events):
+            at = f"2026-01-02T10:{minute:02d}:00Z"
+            if event[0] == "prompt":
+                lines.append({"type": "response_item", "timestamp": at, "payload": {
+                    "type": "message", "role": "user", "content": [{"type": "input_text", "text": event[1]}]}})
+            elif event[0] == "start":
+                lines.append({"type": "event_msg", "timestamp": at, "payload": {"type": "task_started"}})
+            else:
+                lines.append({"type": "event_msg", "timestamp": at, "payload": {"type": "token_count", "info": {
+                    "total_token_usage": {"input_tokens": event[1], "total_tokens": event[1]}}}})
+        self.transcript(self.codex_home / "sessions" / "2026" / "01" / "02" / name, lines)
+
+    def codex_totals(self):
+        data = self.codex_board()
+        return {row["id"]: (row["cost"] or {}).get("total", {}).get("codex", {}).get("total") for row in data["jobs"]}
+
+    def test_codex_prompt_and_start_in_either_order_stay_together(self):
+        self.card("WEB")
+        self.card("OPS")
+        self.codex_events("g.jsonl", [("prompt", "WEB first"), ("start",), ("tokens", 100),
+                                      ("prompt", "OPS next"), ("tokens", 250),
+                                      ("start",), ("prompt", "WEB again"), ("tokens", 300)])
+        self.assertEqual(self.codex_totals(), {"WEB": 150, "OPS": 150})
+
+    def test_codex_log_without_start_events_splits_on_prompts(self):
+        self.card("WEB")
+        self.card("OPS")
+        self.codex_events("h.jsonl", [("prompt", "WEB"), ("tokens", 100), ("prompt", "OPS"), ("tokens", 150)])
+        self.assertEqual(self.codex_totals(), {"WEB": 100, "OPS": 50})
+
+    def test_an_unreadable_helper_keeps_the_rest_and_marks_partial(self):
+        self.card("WEB", session=MAIN)
+        self.write_main()
+        helper = self.project / MAIN / "subagents" / "agent-1.jsonl"
+        helper.chmod(0)
+        self.addCleanup(helper.chmod, 0o600)
+        self.codex_events("i.jsonl", [("start",), ("prompt", "WEB"), ("tokens", 10)])
+        data = self.codex_board()
+        total = data["jobs"][0]["cost"]["total"]
+        self.assertEqual(total["claude"]["claude-opus-5-5"]["output"], 500)
+        self.assertNotIn("claude-sonnet-5-5", total["claude"])
+        self.assertEqual(total["codex"]["total"], 10)
+        self.assertEqual(data["usage"]["status"], "partial")
+
+    def test_a_scope_that_is_not_a_list_of_strings_is_a_card_error(self):
+        self.card("GOOD")
+        self.card("TEXT", scope="/synthetic/web")
+        self.card("NUMBER", scope=7)
+        self.codex_events("j.jsonl", [("start",), ("prompt", "no card"), ("tokens", 10)])
+        data = self.codex_board()
+        self.assertEqual([row["id"] for row in data["jobs"]], ["GOOD"])
+        self.assertEqual(len(data["errors"]), 2)
+        self.assertEqual(data["codex_unattributed"]["runs"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

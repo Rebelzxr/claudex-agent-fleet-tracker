@@ -48,6 +48,9 @@ def card_row(card, fallback_id):
     sessions = card.get("sessions", [])
     if not isinstance(sessions, list) or any(not isinstance(item, str) for item in sessions):
         raise ValueError("sessions must be a list of strings")
+    scope = card.get("scope", [])
+    if not isinstance(scope, list) or any(not isinstance(item, str) for item in scope):
+        raise ValueError("scope must be a list of strings")
     return {
         "id": card.get("id") or fallback_id,
         "title": card.get("title", ""),
@@ -185,7 +188,7 @@ def main():
     parser.add_argument("--no-codex", action="store_true",
                         default=os.environ.get("FLEET_CODEX", "").lower() in ("0", "false", "no"),
                         help="skip Codex session logs")
-    parser.add_argument("--codex-days", type=int, default=int(os.environ.get("FLEET_CODEX_DAYS") or 30),
+    parser.add_argument("--codex-days", type=int, default=os.environ.get("FLEET_CODEX_DAYS") or "30",
                         help="read Codex logs changed in this many days (default 30)")
     parser.add_argument("--prices", default=os.environ.get("FLEET_PRICES", str(Path(__file__).with_name("usage_prices.json"))))
     args = parser.parse_args()

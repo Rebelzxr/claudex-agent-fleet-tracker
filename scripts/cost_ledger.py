@@ -118,7 +118,12 @@ def read_session(files):
     """Replies keyed by message id. A reply streamed over several lines keeps each counter's maximum."""
     replies, title, bad = {}, None, 0
     for path in files:
-        with open(path, "rb") as handle:
+        try:
+            handle = open(path, "rb")
+        except OSError:
+            bad += 1  # an unreadable file makes the total partial, not unknown
+            continue
+        with handle:
             for raw in handle:
                 line = raw.decode("utf-8", "ignore")
                 if '"custom-title"' in line[:200]:
@@ -288,6 +293,13 @@ def read_codex(path, job_ids):
         turns.append({"t0": at, "t1": at, "named": set(), "tokens": [0] * 5, "upper": 0})
         return turns[-1]
 
+    def open_turn(at):
+        # A prompt and its task_started event can come in either order. Both belong to
+        # the latest turn until that turn has used tokens; after that, a new turn starts.
+        if turns and not any(turns[-1]["tokens"]) and not turns[-1]["upper"]:
+            return turns[-1]
+        return turn(at)
+
     with open(path, "rb") as handle:
         for raw in handle:
             if not any(key in raw for key in CODEX_KEYS):
@@ -301,7 +313,7 @@ def read_codex(path, job_ids):
                 if kind == "session_meta":
                     cwd = cwd or payload.get("cwd")
                 elif kind == "event_msg" and inner == "task_started":
-                    turn(at)
+                    open_turn(at)
                 elif kind == "event_msg" and inner == "token_count":
                     info = payload.get("info")
                     total = info.get("total_token_usage") if isinstance(info, dict) else None
@@ -321,11 +333,11 @@ def read_codex(path, job_ids):
                     current["t1"] = at or current["t1"]
                     high = [max(a, b) for a, b in zip(high, now)]
                     prev = now
-                elif kind == "response_item" and inner == "message" and payload.get("role") == "user" and turns:
+                elif kind == "response_item" and inner == "message" and payload.get("role") == "user":
                     content = payload.get("content") if isinstance(payload.get("content"), list) else []
                     text = " ".join(str(part.get("text", "")) for part in content if isinstance(part, dict))[:4000]
                     if not text.lstrip().startswith("<"):
-                        turns[-1]["named"] |= {job for job in job_ids if _names(text, job)}
+                        open_turn(at)["named"] |= {job for job in job_ids if _names(text, job)}
             except (ValueError, AttributeError, TypeError):
                 bad += 1
     return turns, cwd, drops, bad

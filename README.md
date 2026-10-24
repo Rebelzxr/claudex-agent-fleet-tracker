@@ -104,7 +104,8 @@ Then `export FLEET_USAGE=1` next to `FLEET_ROOT` and `FLEET_BOARD_SCRIPT`, quit
 and restart the app from that shell, and run `/board`. An app opened from its
 icon may not see shell variables; see [Board setup](docs/BOARD.md).
 
-Everything is read locally and only numbers are kept. Dollars are
+Everything is read locally. The output keeps token counts, model names,
+timestamps, session ids and chat titles, never prompt or reply text. Dollars are
 API-equivalent list prices, not a bill, and Codex is counted but not priced.
 Details: [Why are tokens null?](docs/BOARD.md#why-are-tokens-null).
 

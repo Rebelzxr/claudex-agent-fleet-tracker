@@ -270,7 +270,8 @@ Then turn on token usage, which is off by default (README,
 [Turn on token usage](../README.md#turn-on-token-usage)):
 
 1. Ask the person once: "Show token and cost numbers? The board reads your
-   local Claude Code and Codex logs on this machine and keeps only numbers."
+   local Claude Code and Codex logs on this machine and keeps token counts,
+   model names, times, session ids and chat titles, never prompt or reply text."
    Skip the rest of this list on a no.
 2. For each director chat, find its Claude Code session id with the unique word
    method in the README and write it into that card's `session`. Never guess an
