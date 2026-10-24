@@ -42,6 +42,8 @@ skipped.
 - Dollars are API-equivalent at the public list prices in
   `scripts/usage_prices.json` (see its `as_of` date), not a bill. Pro and Max
   plans are subscriptions. Codex usage is not counted yet.
+- Work time (`active_s`) is an estimate: the sum of gaps between replies, with
+  any gap over ten minutes treated as idle. It is not measured run time.
 - A session named on two cards is not split between them. It shows on its chat
   row as coordination and on neither job.
 - When a job still shows null, `usage.status` and the prices note say why:

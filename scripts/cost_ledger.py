@@ -142,7 +142,7 @@ def read_session(files):
                         continue
                     nums = {name: _count(usage.get(name)) for name in COUNTERS}
                     split = usage.get("cache_creation") or {}
-                    write_1h = min(nums["cache_creation_input_tokens"], _count(split.get("ephemeral_1h_input_tokens")))
+                    write_1h = _count(split.get("ephemeral_1h_input_tokens"))
                 except (ValueError, AttributeError, TypeError):
                     bad += 1
                     continue

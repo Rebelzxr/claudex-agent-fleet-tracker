@@ -208,6 +208,16 @@ class UsageChecks(unittest.TestCase):
         ])
         opus = BOARD.build_board(self.fleet, usage=self.usage)["jobs"][0]["cost"]["total"]["claude"]["claude-opus-5-5"]
         self.assertEqual((opus["cache_write_5m"], opus["cache_write_1h"]), (0, 100))
+        # A sparse later line carries the 1h split without repeating the total.
+        self.transcript(self.project / f"{MAIN}.jsonl", [
+            reply("c2", "claude-opus-5-5", "2026-01-02T10:00:00Z", cache_creation_input_tokens=100),
+            reply("c2", "claude-opus-5-5", "2026-01-02T10:00:00Z", output_tokens=5,
+                  cache_creation={"ephemeral_1h_input_tokens": 100}),
+        ])
+        total = BOARD.build_board(self.fleet, usage=self.usage)["jobs"][0]["cost"]["total"]
+        opus = total["claude"]["claude-opus-5-5"]
+        self.assertEqual((opus["cache_write_5m"], opus["cache_write_1h"], opus["output"]), (0, 100, 5))
+        self.assertAlmostEqual(total["usd"], (100 * 8 + 5 * 20) / 1e6)
 
     def test_a_transcript_without_usage_is_unknown_and_marks_the_board_partial(self):
         self.card("WEB", session=MAIN)
