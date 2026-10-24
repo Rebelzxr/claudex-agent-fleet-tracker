@@ -33,6 +33,7 @@ class UsageChecks(unittest.TestCase):
         self.project = self.projects / "-synthetic-project"
         self.project.mkdir(parents=True)
         self.usage = {"projects": self.projects, "prices": PRICES}
+        self.codex_home = base / "codex"
 
     def card(self, job, **fields):
         (self.fleet / "dispatch/jobs" / f"{job}.json").write_text(json.dumps({"id": job, **fields}))
@@ -173,7 +174,8 @@ class UsageChecks(unittest.TestCase):
     def test_command_line_flag_and_environment_switch(self):
         self.card("WEB", session=MAIN)
         self.write_main()
-        base = ["python3", "scripts/fleet_board.py", "--root", str(self.fleet), "--claude-dir", str(self.projects)]
+        base = ["python3", "scripts/fleet_board.py", "--root", str(self.fleet), "--claude-dir", str(self.projects),
+                "--codex-dir", str(self.codex_home)]
         for extra, env in (([], {"FLEET_USAGE": "1"}), (["--usage"], {})):
             result = subprocess.run(base + extra, cwd=ROOT, capture_output=True, text=True, check=True,
                                     env={**os.environ, "FLEET_USAGE": "", **env})
@@ -218,6 +220,14 @@ class UsageChecks(unittest.TestCase):
         opus = total["claude"]["claude-opus-5-5"]
         self.assertEqual((opus["cache_write_5m"], opus["cache_write_1h"], opus["output"]), (0, 100, 5))
         self.assertAlmostEqual(total["usd"], (100 * 8 + 5 * 20) / 1e6)
+        # A later line with only the 1h split and no other counter is still read.
+        self.transcript(self.project / f"{MAIN}.jsonl", [
+            reply("c3", "claude-opus-5-5", "2026-01-02T10:00:00Z", cache_creation_input_tokens=100),
+            reply("c3", "claude-opus-5-5", "2026-01-02T10:00:00Z",
+                  cache_creation={"ephemeral_1h_input_tokens": 100}),
+        ])
+        opus = BOARD.build_board(self.fleet, usage=self.usage)["jobs"][0]["cost"]["total"]["claude"]["claude-opus-5-5"]
+        self.assertEqual((opus["cache_write_5m"], opus["cache_write_1h"]), (0, 100))
 
     def test_a_transcript_without_usage_is_unknown_and_marks_the_board_partial(self):
         self.card("WEB", session=MAIN)
@@ -263,9 +273,114 @@ class UsageChecks(unittest.TestCase):
         cache = ROOT / "scripts" / "__pycache__"
         before = sorted(cache.glob("cost_ledger*")) if cache.exists() else []
         subprocess.run(["python3", "scripts/fleet_board.py", "--root", str(self.fleet), "--usage",
-                        "--claude-dir", str(self.projects)], cwd=ROOT, capture_output=True, check=True)
+                        "--claude-dir", str(self.projects), "--codex-dir", str(self.codex_home)],
+                       cwd=ROOT, capture_output=True, check=True)
         after = sorted(cache.glob("cost_ledger*")) if cache.exists() else []
         self.assertEqual(before, after)
+
+    # ---- Codex session logs (synthetic; the real ~/.codex is never read by these tests)
+
+    def codex_log(self, name, cwd, turns):
+        lines = [{"type": "session_meta", "timestamp": "2026-01-02T09:00:00Z", "payload": {"cwd": cwd}}]
+        total = [0, 0, 0, 0, 0]
+        for start, prompt, steps in turns:
+            lines.append({"type": "event_msg", "timestamp": start, "payload": {"type": "task_started"}})
+            lines.append({"type": "response_item", "timestamp": start, "payload": {
+                "type": "message", "role": "user", "content": [{"type": "input_text", "text": prompt}]}})
+            for at, values in steps:
+                total = values
+                lines.append({"type": "event_msg", "timestamp": at, "payload": {"type": "token_count", "info": {
+                    "total_token_usage": dict(zip(
+                        ("input_tokens", "cached_input_tokens", "output_tokens", "reasoning_output_tokens",
+                         "total_tokens"), total))}}})
+        self.transcript(self.codex_home / "sessions" / "2026" / "01" / "02" / name, lines)
+
+    def codex_board(self, **extra):
+        return BOARD.build_board(self.fleet, usage=dict(self.usage, codex=self.codex_home, **extra))
+
+    def test_codex_turns_go_to_the_job_their_prompt_names(self):
+        self.card("WEB", session="<WEB_SESSION_ID>")
+        self.card("SEO", session="<SEO_SESSION_ID>")
+        self.codex_log("a.jsonl", "/nowhere", [
+            ("2026-01-02T10:00:00Z", "JOB_ID: WEB review the diff HIDDEN_PROMPT_TEXT",
+             [("2026-01-02T10:01:00Z", [100, 40, 10, 5, 110]), ("2026-01-02T10:02:00Z", [300, 100, 30, 10, 330])]),
+            ("2026-01-02T11:00:00Z", "SEO and WEB both", [("2026-01-02T11:01:00Z", [400, 100, 40, 10, 440])]),
+            ("2026-01-02T12:00:00Z", "no card named", [("2026-01-02T12:01:00Z", [450, 100, 50, 10, 500])]),
+        ])
+        data = self.codex_board()
+        costs = {row["id"]: row["cost"] for row in data["jobs"]}
+        codex = costs["WEB"]["total"]["codex"]
+        self.assertEqual((codex["runs"], codex["input"], codex["cached"], codex["output"], codex["total"]),
+                         (1, 300, 100, 30, 330))
+        self.assertEqual(costs["WEB"]["total"]["usd"], 0.0)
+        self.assertEqual(costs["WEB"]["chats"], ["Codex"])
+        self.assertEqual(costs["WEB"]["total"]["active_s"], 120.0)
+        self.assertIsNone(costs["SEO"])
+        self.assertEqual(data["codex_unattributed"], {"runs": 2, "total": 170, "total_upper": 170, "several_jobs": 1})
+        self.assertIn("not priced", data["prices"]["note"])
+        self.assertNotIn("HIDDEN_PROMPT_TEXT", json.dumps(data))
+        self.assertNotIn("/nowhere", json.dumps(data))
+
+    def test_codex_runs_inside_a_card_folder_go_to_that_job(self):
+        lane = Path(self.temp.name) / "lanes" / "web"
+        lane.mkdir(parents=True)
+        self.card("WEB", scope=[str(lane) + "/"])
+        self.card("OPS", scope=["<FLEET_ROOT>/ops/"])
+        self.codex_log("b.jsonl", str(lane / "src"), [
+            ("2026-01-02T10:00:00Z", "fix the build", [("2026-01-02T10:01:00Z", [10, 0, 5, 0, 15])])])
+        self.codex_log("c.jsonl", str(self.fleet / "ops"), [
+            ("2026-01-02T10:00:00Z", "check the queue", [("2026-01-02T10:01:00Z", [20, 0, 5, 0, 25])])])
+        costs = {row["id"]: row["cost"] for row in self.codex_board()["jobs"]}
+        self.assertEqual(costs["WEB"]["total"]["codex"]["total"], 15)
+        self.assertEqual(costs["OPS"]["total"]["codex"]["total"], 25)
+
+    def test_codex_and_claude_add_up_on_one_job(self):
+        self.card("WEB", session=MAIN)
+        self.write_main()
+        self.codex_log("d.jsonl", "/nowhere", [
+            ("2026-01-02T10:00:00Z", "WEB: review", [("2026-01-02T10:01:00Z", [10, 0, 5, 0, 15])])])
+        cost = self.codex_board()["jobs"][0]["cost"]
+        self.assertEqual(cost["total"]["codex"]["total"], 15)
+        self.assertEqual(cost["total"]["claude"]["claude-opus-5-5"]["output"], 500)
+        self.assertEqual(sorted(cost["chats"]), sorted([MAIN, "Codex"]))
+
+    def test_a_falling_codex_counter_keeps_a_range(self):
+        self.card("WEB")
+        self.codex_log("e.jsonl", "/nowhere", [
+            ("2026-01-02T10:00:00Z", "WEB", [("2026-01-02T10:01:00Z", [100, 0, 0, 0, 100]),
+                                             ("2026-01-02T10:02:00Z", [30, 0, 0, 0, 30]),
+                                             ("2026-01-02T10:03:00Z", [150, 0, 0, 0, 150])])])
+        codex = self.codex_board()["jobs"][0]["cost"]["total"]["codex"]
+        self.assertEqual((codex["total"], codex["total_upper"], codex["drops"]), (150, 250, 1))
+
+    def test_old_and_linked_codex_logs_are_skipped(self):
+        self.card("WEB")
+        self.codex_log("old.jsonl", "/nowhere", [
+            ("2026-01-02T10:00:00Z", "WEB", [("2026-01-02T10:01:00Z", [10, 0, 0, 0, 10])])])
+        old = self.codex_home / "sessions" / "2026" / "01" / "02" / "old.jsonl"
+        os.utime(old, (1, 1))
+        outside = Path(self.temp.name) / "elsewhere.jsonl"
+        outside.write_text(old.read_text())
+        (old.parent / "linked.jsonl").symlink_to(outside)
+        data = self.codex_board()
+        self.assertIsNone(data["jobs"][0]["cost"])
+        self.assertEqual(data["usage"]["codex"]["status"], "no_recent_logs")
+
+    def test_missing_codex_home_is_a_reason_not_an_error(self):
+        self.card("WEB", session=MAIN)
+        self.write_main()
+        data = self.codex_board()
+        self.assertIsNotNone(data["jobs"][0]["cost"])
+        self.assertEqual(data["usage"]["codex"]["status"], "no_logs")
+        self.assertIn("no Codex session logs found", data["prices"]["note"])
+
+    def test_a_job_id_inside_a_longer_word_does_not_count(self):
+        self.card("WEB")
+        self.codex_log("f.jsonl", "/nowhere", [
+            ("2026-01-02T10:00:00Z", "WEBSITE-REDESIGN and WEB-2", [("2026-01-02T10:01:00Z", [10, 0, 0, 0, 10])])])
+        data = self.codex_board()
+        self.assertIsNone(data["jobs"][0]["cost"])
+        self.assertEqual(data["codex_unattributed"]["runs"], 1)
 
 
 if __name__ == "__main__":

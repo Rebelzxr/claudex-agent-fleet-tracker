@@ -17,7 +17,9 @@ Token usage is opt-in; see [Why are tokens null?](#why-are-tokens-null).
 ## Why are tokens null?
 
 Token usage is off by default, so a fresh checkout shows `cost: null` and a dash
-in the cost column. Nothing private is read until you ask. Turn it on with:
+in the cost column. Nothing private is read until you ask. The step by step is in
+the README under [Turn on token usage](../README.md#turn-on-token-usage). Turn it
+on with:
 
 ```sh
 FLEET_USAGE=1 python3 scripts/fleet_board.py --root "${FLEET_ROOT:-example}" | python3 -m json.tool
@@ -25,10 +27,13 @@ FLEET_USAGE=1 python3 scripts/fleet_board.py --root "${FLEET_ROOT:-example}" | p
 
 That uses your exported `FLEET_ROOT`, or the example fleet if it is unset. The
 example cards hold placeholders, so they stay null until you put real session
-ids on your own cards. `--usage` does the same as `FLEET_USAGE=1`. For the mod, add `export FLEET_USAGE=1` next to the
-other exports below before you start the app. Transcripts are read from
-`~/.claude/projects`; if yours live elsewhere, set `FLEET_CLAUDE_PROJECTS` (or
-`--claude-dir`) to that folder.
+ids on your own cards. `--usage` does the same as `FLEET_USAGE=1`. For the
+mod, add `export FLEET_USAGE=1` next to the other exports below before you start
+the app. Claude transcripts are read from `~/.claude/projects`; if yours live
+elsewhere, set `FLEET_CLAUDE_PROJECTS` (or `--claude-dir`). Codex logs are read
+from `~/.codex`; set `FLEET_CODEX_HOME` (or `--codex-dir`) to move it,
+`FLEET_CODEX=0` (or `--no-codex`) to skip it, and `FLEET_CODEX_DAYS` (or
+`--codex-days`, default 30) for how far back to look.
 
 Each card then needs its director's Claude Code session id in `session`. That id
 is the file name of the chat's transcript under `~/.claude/projects/<project>/`,
@@ -41,7 +46,13 @@ skipped.
   chat title. Prompt, reply and tool text never reach the output. No network.
 - Dollars are API-equivalent at the public list prices in
   `scripts/usage_prices.json` (see its `as_of` date), not a bill. Pro and Max
-  plans are subscriptions. Codex usage is not counted yet.
+  plans are subscriptions.
+- Codex reads session logs changed in the last 30 days and keeps only their
+  token totals, times and the card ids their prompts name. A run counts toward
+  a job when its prompt names exactly one card id, else when it ran inside
+  exactly one card's `scope` folder; the rest is "not tied to a job". Codex is
+  counted, not priced. Its counters are cumulative, so a counter that falls
+  shows as a range.
 - Work time (`active_s`) is an estimate: the sum of gaps between replies, with
   any gap over ten minutes treated as idle. It is not measured run time.
 - A session named on two cards is not split between them. It shows on its chat
@@ -93,9 +104,10 @@ A fresh install selects the first session as HQ; `/board-hq` changes that choice
 - Jobs: lane, current status, completed steps and next action. Lane buttons jump
   into the paged list. Blockers beginning with `Human:` show `on YOU`.
 - Optional cost detail: with usage off, the script supplies `cost: null` and no
-  chat totals. The column dash means unknown, not free work. With usage on, each
-  job gets Claude token buckets and an API-equivalent dollar figure. Phase data
-  stays empty.
+  chat totals. The column dash means unknown, not free work. With usage on, a
+  job with readable usage from its own sessions or Codex runs gets token
+  buckets and an API-equivalent Claude dollar figure; shared or missing
+  sessions leave it null. Phase data stays empty.
 - Chats: per-session totals when usage is on; empty otherwise.
 - Messages: direction, peer label, delivery state and configured time zone.
   Message bodies are neither stored nor drawn by this port. Routing metadata

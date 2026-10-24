@@ -16,4 +16,7 @@
 - Before stopping mid-job or near the context limit, write
   memory/session-handoffs/<date>-<lane>.md (templates/checkpoint.md).
 - State lives in files. A new chat or model trusts the files over any summary.
+- Keep your Claude Code session id on your job card (`session`, older ids in
+  `sessions`) and start every Codex prompt with `JOB_ID: <card id>`, so the
+  board can count tokens per job when usage is on.
 - End with exactly one STATUS tag from the receipt template.

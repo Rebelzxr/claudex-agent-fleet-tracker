@@ -266,6 +266,22 @@ details and jumps to the lane.
 If the build lacks mod support, mark the pane `unsupported` and keep the JSON
 reader. Mocked tests passing does not mean the desktop pane works.
 
+Then turn on token usage, which is off by default (README,
+[Turn on token usage](../README.md#turn-on-token-usage)):
+
+1. Ask the person once: "Show token and cost numbers? The board reads your
+   local Claude Code and Codex logs on this machine and keeps only numbers."
+   Skip the rest of this list on a no.
+2. For each director chat, find its Claude Code session id with the unique word
+   method in the README and write it into that card's `session`. Never guess an
+   id. Keep older ids in `sessions` after a rotation.
+3. Set `FLEET_USAGE=1` where the board runs (shell and the mod's environment).
+4. Run `python3 scripts/fleet_board.py --root "$FLEET_ROOT" --usage` once.
+
+**Check:** the pilot card's `cost` is not null and `usage.status` is `ok` (or
+`partial` with a reason you can name). Record the status in the setup receipt.
+If it stays null, report the status and its reason; do not edit numbers in.
+
 **Stop and ask:** adding a marketplace or installing a plugin account-wide.
 
 ## Phase 7. A reviewed change, Claude to GPT
@@ -372,6 +388,7 @@ Components:
 - guards: <status, which>
 - HQ and director chats: <status>
 - board JSON / board pane: <status> / <status>
+- token usage (Claude / Codex): <usage.status> / <usage.codex.status>
 - review loop: <status, log path>
 - decisions, logs, handoff: <status>
 - sweep / wake / steward: <status> / <status> / <status>

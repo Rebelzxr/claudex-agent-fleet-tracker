@@ -10,7 +10,7 @@ function setup(on: any, options: { missing?: boolean; failure?: boolean; invalid
   on('session.id', (() => ({ value: 'hq-sample' })) as any)
   on('env.get', ((_$: any, e: any) => ({ value: options.missing ? '' : ({
     FLEET_ROOT: '/x/sample fleet', FLEET_BOARD_SCRIPT: '/x/tools/board script.py', FLEET_TIMEZONE: 'UTC',
-    ...(options.usage ? { FLEET_USAGE: '1', FLEET_CLAUDE_PROJECTS: '/x/transcripts' } : {}),
+    ...(options.usage ? { FLEET_USAGE: '1', FLEET_CLAUDE_PROJECTS: '/x/transcripts', FLEET_CODEX_HOME: '/x/codex', FLEET_CODEX: '0' } : {}),
   } as any)[e.name] })) as any)
   on('process.run', ((_$: any, e: any) => {
     calls.push(e)
@@ -46,6 +46,8 @@ test('FLEET_USAGE passes --usage and the transcript folder', async ($, on) => {
   const call = JSON.stringify(calls[0])
   expect(call).toContain('--usage')
   expect(call).toContain('/x/transcripts')
+  expect(call).toContain('/x/codex')
+  expect(call).toContain('--no-codex')
 })
 
 test('missing config does not run a process', async ($, on) => {

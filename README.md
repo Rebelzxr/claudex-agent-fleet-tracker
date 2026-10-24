@@ -39,8 +39,7 @@ python3 -B -m unittest discover -s tests -v
 
 You should see four jobs across website, content, seo and ops. One is active,
 one waits on a human, one needs review and one is done. Costs are unknown
-because token usage is off by default: see
-[Why are tokens null?](docs/BOARD.md#why-are-tokens-null) for the one-line switch.
+because token usage is off by default: see [Turn on token usage](#turn-on-token-usage).
 A missing dispatch/jobs directory is an error, rather than an empty success.
 
 To have your own Claude or GPT agent set the fleet up step by step, hand it
@@ -70,6 +69,32 @@ plugin, scripted reviews and how both agents share one folder safely.
 their work, hand off to a new chat and pass state between Claude and GPT.
 The script works on its own when your Claude build has no mod support.
 
+## Turn on token usage
+
+Token and cost columns are off by default, so a fresh board shows null. To see
+the same numbers as the author's board:
+
+1. Set `FLEET_USAGE=1` (or pass `--usage`). For the desktop pane, export it
+   before you start the app, next to `FLEET_ROOT`.
+2. Put each director's Claude Code session id in its card's `session` field. The
+   id is the transcript file name under `~/.claude/projects/<project>/`, without
+   `.jsonl`. To find it, type a unique word such as `fleet-id-check-4821` in that
+   director chat, then run
+   `grep -l fleet-id-check-4821 ~/.claude/projects/*/*.jsonl`. With only one chat
+   open, `ls -t ~/.claude/projects/*/*.jsonl | head -3` also shows it first.
+   After a chat rotation, add the older id to a `sessions` list on the card.
+3. For Codex (GPT) tokens, nothing extra: recent logs under `~/.codex/sessions`
+   are read too. A Codex run counts toward a job when its prompt names the card
+   id (start prompts with `JOB_ID: <card id>`) or it runs inside the card's
+   `scope` folder. Other runs show as "not tied to a job".
+4. Check: `python3 scripts/fleet_board.py --root "$FLEET_ROOT" --usage` and look
+   for a non-null `cost` on your cards. If it is still null, `usage.status`
+   says why.
+
+Everything is read locally and only numbers are kept. Dollars are
+API-equivalent list prices, not a bill, and Codex is counted but not priced.
+Details: [Why are tokens null?](docs/BOARD.md#why-are-tokens-null).
+
 ## How HQ dispatches
 
 1. HQ reads TODO and the relevant job card, confirms the writer lease and writes
@@ -89,7 +114,7 @@ not a bundled hosted app.
 
 ## Layout and checks
 
-- `scripts/`: read-only JSON board, opt-in token usage ledger and privacy grep.
+- `scripts/`: read-only JSON board, opt-in Claude and Codex token ledger and privacy grep.
 - `mods/hq-board/`: desktop/terminal pane with offline host regression tests.
 - `templates/`: shared rules, charters, handoff, receipt and checkpoint.
 - `scheduled-tasks/`: inert sweep, steward and restart-wake instructions.

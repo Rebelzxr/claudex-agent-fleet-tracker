@@ -2,7 +2,8 @@
 """Read job cards beneath a fleet root and print JSON. No network or state writes.
 
 With --usage (or FLEET_USAGE=1) it also reads token counts from local Claude Code
-transcripts for the session ids on the cards. See docs/BOARD.md.
+transcripts for the session ids on the cards, and from recent local Codex session
+logs (skip them with --no-codex). See docs/BOARD.md.
 """
 
 import argparse
@@ -63,12 +64,24 @@ def card_row(card, fallback_id):
     }
 
 
-USAGE_OFF = "Usage off: run with --usage or FLEET_USAGE=1 to read local Claude Code transcripts"
+USAGE_OFF = "Usage off: run with --usage or FLEET_USAGE=1 to read local Claude Code and Codex logs"
 
 
 def card_sessions(card):
     named = [card.get("session")] + list(card.get("sessions") or [])
     return sorted({item for item in named if item and not item.startswith("<")})
+
+
+def card_folders(card, root):
+    """Absolute scope folders of a card, with <FLEET_ROOT> filled in; used only to tie Codex runs."""
+    found = []
+    for item in card.get("scope") or []:
+        if not isinstance(item, str):
+            continue
+        path = Path(item.replace("<FLEET_ROOT>", str(root))).expanduser()
+        if path.is_absolute():
+            found.append(path.resolve())
+    return found
 
 
 def load_ledger():
@@ -84,7 +97,7 @@ def load_ledger():
 
 
 def build_board(root, zone=None, usage=None):
-    """usage: None for off, else {"projects": Path, "prices": Path}."""
+    """usage: None for off, else {"projects": Path, "prices": Path, "codex": Path or None, "codex_days": int}."""
     if zone:
         ZoneInfo(zone)  # Validate before a host tries to format it.
     jobs_dir = root / "dispatch" / "jobs"
@@ -93,7 +106,7 @@ def build_board(root, zone=None, usage=None):
     jobs = []
     ids = set()
     errors = []
-    sessions = {}
+    sessions, folders = {}, {}
     for path in sorted(jobs_dir.glob("*.json")):
         if path.name.startswith("_"):
             continue
@@ -108,6 +121,7 @@ def build_board(root, zone=None, usage=None):
             ids.add(row["id"])
             jobs.append(row)
             sessions[row["id"]] = card_sessions(card)
+            folders[row["id"]] = card_folders(card, root)
         except (OSError, UnicodeError, ValueError, OverflowError):
             # Do not echo file contents, paths or parser snippets into the pane.
             errors.append({"chat": path.name, "error": "invalid card; check schema and unique id"})
@@ -121,16 +135,21 @@ def build_board(root, zone=None, usage=None):
         "errors": errors,
     }
     if usage is not None:
-        add_usage(board, sessions, usage)
+        add_usage(board, sessions, usage, folders)
     return board
 
 
-def add_usage(board, sessions, usage):
+def add_usage(board, sessions, usage, folders=None):
     """Fill costs from transcripts. Any failure leaves costs null with a reason, never a fake zero."""
     try:
         ledger = load_ledger()
         prices = ledger.load_prices(usage["prices"])
         job_costs, chats, report = ledger.usage(sessions, usage["projects"], prices)
+        codex = None
+        if usage.get("codex"):
+            per_job, unattributed, codex = ledger.codex_usage(
+                sorted(sessions), folders or {}, usage["codex"], usage.get("codex_days", 30))
+            ledger.add_codex(job_costs, per_job)
     except (OSError, UnicodeError, ValueError, KeyError, TypeError, AttributeError, OverflowError):
         board["usage"] = {"enabled": True, "status": "error",
                           "reason": "usage could not be read; costs left unknown"}
@@ -140,10 +159,16 @@ def add_usage(board, sessions, usage):
         row["cost"] = job_costs.get(row["id"])
     board["chats"] = chats
     board["usage"] = report
-    note = ("API-equivalent dollars at public list prices, not a bill. "
-            "Claude tokens from local transcripts; Codex not counted")
-    if report.get("reason"):
-        note = f"{report['reason']}. {note}"
+    note = "API-equivalent dollars at public list prices, not a bill. Claude tokens from local transcripts; "
+    if codex is None:
+        note += "Codex not counted"
+    else:
+        board["codex_unattributed"] = unattributed
+        report["codex"] = codex
+        note += "Codex tokens from local session logs, not priced"
+    reasons = [r for r in (report.get("reason"), (codex or {}).get("reason")) if r]
+    if reasons:
+        note = f"{'. '.join(reasons)}. {note}"
     board["prices"] = {"as_of": prices.get("as_of"), "sources": prices.get("sources"), "note": note}
 
 
@@ -155,11 +180,20 @@ def main():
                         default=os.environ.get("FLEET_USAGE", "").lower() in ("1", "true", "yes"),
                         help="read token counts from local Claude Code transcripts")
     parser.add_argument("--claude-dir", default=os.environ.get("FLEET_CLAUDE_PROJECTS", "~/.claude/projects"))
+    parser.add_argument("--codex-dir", default=os.environ.get("FLEET_CODEX_HOME", "~/.codex"),
+                        help="Codex home with sessions/ (read only with --usage)")
+    parser.add_argument("--no-codex", action="store_true",
+                        default=os.environ.get("FLEET_CODEX", "").lower() in ("0", "false", "no"),
+                        help="skip Codex session logs")
+    parser.add_argument("--codex-days", type=int, default=int(os.environ.get("FLEET_CODEX_DAYS") or 30),
+                        help="read Codex logs changed in this many days (default 30)")
     parser.add_argument("--prices", default=os.environ.get("FLEET_PRICES", str(Path(__file__).with_name("usage_prices.json"))))
     args = parser.parse_args()
     usage = None
     if args.usage:
-        usage = {"projects": Path(args.claude_dir).expanduser(), "prices": Path(args.prices).expanduser()}
+        usage = {"projects": Path(args.claude_dir).expanduser(), "prices": Path(args.prices).expanduser(),
+                 "codex": None if args.no_codex else Path(args.codex_dir).expanduser(),
+                 "codex_days": max(1, args.codex_days)}
     try:
         board = build_board(Path(args.root).expanduser().resolve(), args.timezone, usage)
         json.dump(board, sys.stdout, allow_nan=False)
